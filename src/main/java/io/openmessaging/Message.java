@@ -1,6 +1,7 @@
 package io.openmessaging;
 
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Objects;
 
 
@@ -76,4 +77,12 @@ public class Message {
         return a == other.a && t == other.t && Arrays.equals(body, other.body);
     }
 
+    @Override
+    public String toString() {
+        return "Message{" +
+                "a=" + a +
+                ", t=" + t +
+                ", body=" + Base64.getEncoder().encodeToString(body) +
+                '}';
+    }
 }
