@@ -22,7 +22,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     private static final String BodySuffix = "0D2125260B5E5B2B0C3741265C0C36070000";
     private static final int Preheat = 150000;
 
-    private IndexRecord[] indexRecords = new IndexRecord[1024 *1024* 600];
+    private IndexRecord[] indexRecords = new IndexRecord[1024 *1024* 800];
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
 
