@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.xml.bind.DatatypeConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,21 +20,24 @@ public class DefaultMessageStoreImpl extends MessageStore {
     private static final Logger log = LoggerFactory.getLogger(DefaultMessageStoreImpl.class);
 
     private static final String BodySuffix = "0D2125260B5E5B2B0C3741265C0C36070000";
+    private static final int Preheat = 150000;
 
-    private ConcurrentHashMap<Integer, IndexRecord> map = new ConcurrentHashMap<>();
+    private IndexRecord[] indexRecords = new IndexRecord[1024 *1024* 60];
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
     private ThroughputRate getRate = new ThroughputRate(1000);
+    private ThroughputRate mapRate = new ThroughputRate(1000);
 
     public DefaultMessageStoreImpl() {
         Thread printLog = new Thread(() -> {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    log.info("putRate:{},getRate:{}", putRate.getThroughputRate(), getRate.getThroughputRate());
+                    log.info("putRate:{},getRate:{},mapRate:{}", putRate.getThroughputRate(), getRate.getThroughputRate(),
+                            mapRate.getThroughputRate());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -43,25 +47,35 @@ public class DefaultMessageStoreImpl extends MessageStore {
         printLog.start();
     }
 
+    private AtomicInteger adder = new AtomicInteger(0);
+    private volatile Integer boundary = null;
+    private volatile Integer boundaryHeap = null; //1035343660
+
+
     @Override
-    public void put(Message message) {
+    public synchronized void put(Message message) {
         int t = ((Long) message.getT()).intValue();
         int a = ((Long) message.getA()).intValue();
-        IndexRecord indexRecord = map.get(t);
-        if (indexRecord == null) {
-            map.putIfAbsent(t, new IndexRecord());
-            indexRecord = map.get(t);
+        if (boundary == null) {
+            boundary = t + Preheat;
+
         }
-        if (!indexRecord.addA(a)) {
+        if (t < boundary) {
+            adder.incrementAndGet();
             List<Result> results = dirtyMap.get(t);
             if (results == null) {
-                ArrayList<Result> list = new ArrayList<>();
-                list.add(new Result(t, indexRecord.minA));
-                dirtyMap.putIfAbsent(t, list);
+                dirtyMap.putIfAbsent(t, new ArrayList<>());
                 results = dirtyMap.get(t);
             }
             results.add(new Result(t, a));
+        } else {
+            int index = t - boundary;
+            if (indexRecords[index] == null) {
+                indexRecords[index] = new IndexRecord();
+            }
+            indexRecords[index].addA(a);
         }
+
         putRate.note();
     }
 
@@ -73,59 +87,54 @@ public class DefaultMessageStoreImpl extends MessageStore {
         }
         int tMinI = ((Long) tMin).intValue();
         int tMaxI = ((Long) tMax).intValue();
-        ArrayList<Message> res = new ArrayList<Message>();
-        Map<Integer, IndexRecord> subMap = subMap(tMinI, tMaxI);
-        List<Result> results = filterResult(subMap, aMin, aMax);
-        for (Result result : results) {
-            long t = result.getT();
-            long a = result.getA();
-            ByteBuffer byteBuffer = ByteBuffer.allocate(34);
-            byteBuffer.putLong(t);
-            byteBuffer.putLong(a);
-            byteBuffer.put(DatatypeConverter.parseHexBinary(BodySuffix));
-            res.add(new Message(a, t, byteBuffer.array()));
+        ArrayList<Message> res = new ArrayList<>();
+        for (int t = tMinI; t <= tMaxI; t++) {
+            List<Result> results = filterResult(t, aMin, aMax);
+            mapRate.note();
+            for (Result result : results) {
+                long a = result.getA();
+                ByteBuffer byteBuffer = ByteBuffer.allocate(34);
+                byteBuffer.putLong(t);
+                byteBuffer.putLong(a);
+                byteBuffer.put(DatatypeConverter.parseHexBinary(BodySuffix));
+                res.add(new Message(a, t, byteBuffer.array()));
+            }
         }
+
         res.sort(Comparator.comparingLong(Message::getT));
         return res;
     }
 
-    private Map<Integer, IndexRecord> subMap(int tMin, int tMax) {
-        Map<Integer, IndexRecord> result = new HashMap<>();
-        for (int i = tMin; i <= tMax; i++) {
-            result.put(i, map.get(i));
-        }
-        return result;
-    }
-
-    private List<Result> filterResult(Map<Integer, IndexRecord> subMap,long aMin, long aMax) {
+    private List<Result> filterResult(int t, long aMin, long aMax) {
         List results = new LinkedList();
-        for (Entry<Integer, IndexRecord> entry : subMap.entrySet()) {
-            if (entry.getValue().size == -1) {
-                List<Result> dirtyResult = dirtyMap.get(entry.getKey());
-                for (Result result : dirtyResult) {
-                    int a = result.a;
-                    if (aMin <= a && a <= aMax) {
-                        results.add(new Result(entry.getKey(), a));
-                        getRate.note();
-                    }
-                }
-                continue;
-            }
 
-            if (entry.getValue().size == 1) {
-                int a = entry.getValue().minA;
+        if (t < this.boundary) {
+            List<Result> dirtyResult = dirtyMap.get(t);
+            for (Result result : dirtyResult) {
+                int a = result.a;
                 if (aMin <= a && a <= aMax) {
-                    results.add(new Result(entry.getKey(), a));
+                    results.add(new Result(t, a));
                     getRate.note();
                 }
-            }else{
-                for (int i = 0; i < entry.getValue().size; i++) {
-                    int a = entry.getValue().minA + i;
+            }
+            return results;
+        }
+
+        int index = t - this.boundary;
+        IndexRecord indexRecord = this.indexRecords[index];
+        if (indexRecord.size == 1) {
+            int a = indexRecord.minA;
+            if (aMin <= a && a <= aMax) {
+                results.add(new Result(t, a));
+                getRate.note();
+            }
+        } else {
+            for (int i = 0; i < indexRecord.size; i++) {
+                int a = indexRecord.minA + i;
 //                    int a = entry.getValue().minA;
-                    if (aMin <= a && a <= aMax) {
-                        results.add(new Result(entry.getKey(), a));
-                        getRate.note();
-                    }
+                if (aMin <= a && a <= aMax) {
+                    results.add(new Result(t, a));
+                    getRate.note();
                 }
             }
         }
@@ -141,11 +150,13 @@ public class DefaultMessageStoreImpl extends MessageStore {
         long count = 0;
         int tMinI = ((Long) tMin).intValue();
         int tMaxI = ((Long) tMax).intValue();
-        Map<Integer, IndexRecord> subMap = subMap(tMinI, tMaxI);
-        List<Result> results = filterResult(subMap, aMin, aMax);
-        for (Result result : results) {
-            sum += result.getA();
-            count++;
+        for (int t = tMinI; t <= tMaxI; t++) {
+            List<Result> results = filterResult(t, aMin, aMax);
+            mapRate.note();
+            for (Result result : results) {
+                sum += result.getA();
+                count++;
+            }
         }
         return count == 0 ? 0 : sum / count;
     }
@@ -155,13 +166,8 @@ public class DefaultMessageStoreImpl extends MessageStore {
         int size = 0;
 
         public synchronized boolean addA(int a) {
-            if (size == -1 || (minA != Integer.MAX_VALUE && Math.abs(a - minA) > 50)) {
-                size = -1; //dirty
-                return false;
-            } else {
-                if (a < minA) {
-                    minA = a;
-                }
+            if (a < minA) {
+                minA = a;
             }
             size++;
             return true;
