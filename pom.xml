@@ -44,6 +44,14 @@
                     </dependency>
                 </dependencies>
                 <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>io.openmessaging.DemoTester</mainClass>
+                        </manifest>
+                    </archive>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
                     <finalName>Race2019</finalName>
                     <appendAssemblyId>false</appendAssemblyId>
                     <descriptors>
