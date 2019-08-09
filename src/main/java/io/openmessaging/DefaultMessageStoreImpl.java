@@ -70,12 +70,18 @@ public class DefaultMessageStoreImpl extends MessageStore {
         } else {
             int index = (t - boundary) * 2;
             int gap = a - t - Gap;
-            store.position(index);
-            int aSize = ByteUtil.getInt(store.get(),store.get());
-            if (gap > aSize) {
+            try {
                 store.position(index);
-                store.put(ByteUtil.toIntBytes(gap));
+                int aSize = ByteUtil.getInt(store.get(),store.get());
+                if (gap > aSize) {
+                    store.position(index);
+                    store.put(ByteUtil.toIntBytes(gap));
+                }
+            } catch (Exception e) {
+                log.error("index overflow:{}", index);
+                throw e;
             }
+
         }
 
         putRate.note();
