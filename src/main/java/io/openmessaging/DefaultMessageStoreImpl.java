@@ -49,11 +49,10 @@ public class DefaultMessageStoreImpl extends MessageStore {
         printLog.start();
     }
 
-    private AtomicInteger adder = new AtomicInteger(0);
     private volatile Integer boundary = null;
 
     @Override
-    public synchronized void put(Message message) {
+    public void put(Message message) {
         int t = ((Long) message.getT()).intValue();
         int a = ((Long) message.getA()).intValue();
         if (boundary == null) {
@@ -61,7 +60,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
         }
         if (t < boundary) {
-            adder.incrementAndGet();
             List<Result> results = dirtyMap.get(t);
             if (results == null) {
                 dirtyMap.putIfAbsent(t, new ArrayList<>());
