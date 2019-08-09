@@ -86,7 +86,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(2); //FULL GC
+    private Semaphore semaphore = new Semaphore(1); //FULL GC
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
