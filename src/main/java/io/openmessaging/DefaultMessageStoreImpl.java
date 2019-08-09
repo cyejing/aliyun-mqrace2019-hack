@@ -21,7 +21,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     private static final Logger log = LoggerFactory.getLogger(DefaultMessageStoreImpl.class);
 
     private static final String BodySuffix = "0D2125260B5E5B2B0C3741265C0C36070000";
-    private static final int Preheat = 150000;
+    private static final int Preheat = 50000;
     private static final int Gap = 32773;
 
 
