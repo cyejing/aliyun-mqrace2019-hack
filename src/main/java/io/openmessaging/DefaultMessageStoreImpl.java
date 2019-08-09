@@ -29,7 +29,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
-    private ThroughputRate storeRate = new ThroughputRate(1000);
     private ThroughputRate indexRate = new ThroughputRate(1000);
     private ThroughputRate messageRate = new ThroughputRate(1000);
 
@@ -38,8 +37,8 @@ public class DefaultMessageStoreImpl extends MessageStore {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    log.info("putRate:{},storeRate:{},indexRate:{},messageRate:{}",
-                            putRate.getThroughputRate(), storeRate.getThroughputRate(),
+                    log.info("putRate:{},indexRate:{},messageRate:{}",
+                            putRate.getThroughputRate(),
                             indexRate.getThroughputRate(),messageRate.getThroughputRate());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -96,15 +95,26 @@ public class DefaultMessageStoreImpl extends MessageStore {
         int tMaxI = ((Long) tMax).intValue();
         ArrayList<Message> res = new ArrayList<>();
         for (int t = tMinI; t <= tMaxI; t++) {
-            List<Result> results = filterResult(t, aMin, aMax);
-            for (Result result : results) {
-                long a = result.getA();
-                ByteBuffer byteBuffer = ByteBuffer.allocate(34);
-                byteBuffer.putLong(t);
-                byteBuffer.putLong(a);
-                byteBuffer.put(DatatypeConverter.parseHexBinary(BodySuffix));
-                res.add(new Message(a, t, byteBuffer.array()));
+            if (t < this.boundary) {
+                List<Result> dirtyResult = dirtyMap.get(t);
+                for (Result result : dirtyResult) {
+                    int a = result.a;
+                    if (aMin <= a && a <= aMax) {
+                        genMessage(res, t, a);
+                    }
+                }
+                continue;
             }
+
+            int index = (t - this.boundary) * 2;
+            int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
+            for (int i = 0; i <= aSize; i++) {
+                int a = t + Gap + i;
+                if (aMin <= a && a <= aMax) {
+                    genMessage(res, t, a);
+                }
+            }
+
         }
 
         res.sort(Comparator.comparingLong(Message::getT));
@@ -112,32 +122,12 @@ public class DefaultMessageStoreImpl extends MessageStore {
         return res;
     }
 
-    private List<Result> filterResult(int t, long aMin, long aMax) {
-        List results = new LinkedList();
-
-        if (t < this.boundary) {
-            List<Result> dirtyResult = dirtyMap.get(t);
-            for (Result result : dirtyResult) {
-                int a = result.a;
-                if (aMin <= a && a <= aMax) {
-                    results.add(new Result(t, a));
-                    storeRate.note();
-                }
-            }
-            return results;
-        }
-
-        int index = (t - this.boundary) * 2;
-        int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
-        for (int i = 0; i <= aSize; i++) {
-            int a = t + Gap + i;
-            if (aMin <= a && a <= aMax) {
-                results.add(new Result(t, a));
-                storeRate.note();
-              }
-        }
-
-        return results;
+    private void genMessage(ArrayList<Message> res, int t, int a) {
+        ByteBuffer byteBuffer = ByteBuffer.allocate(34);
+        byteBuffer.putLong(t);
+        byteBuffer.putLong(a);
+        byteBuffer.put(DatatypeConverter.parseHexBinary(BodySuffix));
+        res.add(new Message(a, t, byteBuffer.array()));
     }
 
     @Override
@@ -147,10 +137,26 @@ public class DefaultMessageStoreImpl extends MessageStore {
         int tMinI = ((Long) tMin).intValue();
         int tMaxI = ((Long) tMax).intValue();
         for (int t = tMinI; t <= tMaxI; t++) {
-            List<Result> results = filterResult(t, aMin, aMax);
-            for (Result result : results) {
-                sum += result.getA();
-                count++;
+            if (t < this.boundary) {
+                List<Result> dirtyResult = dirtyMap.get(t);
+                for (Result result : dirtyResult) {
+                    int a = result.a;
+                    if (aMin <= a && a <= aMax) {
+                        sum += a;
+                        count++;
+                    }
+                }
+                continue;
+            }
+
+            int index = (t - this.boundary) * 2;
+            int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
+            for (int i = 0; i <= aSize; i++) {
+                int a = t + Gap + i;
+                if (aMin <= a && a <= aMax) {
+                    sum += a;
+                    count++;
+                }
             }
         }
         indexRate.note();
