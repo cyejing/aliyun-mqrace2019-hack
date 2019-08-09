@@ -29,16 +29,18 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
-    private ThroughputRate getRate = new ThroughputRate(1000);
-    private ThroughputRate mapRate = new ThroughputRate(1000);
+    private ThroughputRate storeRate = new ThroughputRate(1000);
+    private ThroughputRate indexRate = new ThroughputRate(1000);
+    private ThroughputRate messageRate = new ThroughputRate(1000);
 
     public DefaultMessageStoreImpl() {
         Thread printLog = new Thread(() -> {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    log.info("putRate:{},getRate:{},mapRate:{}", putRate.getThroughputRate(), getRate.getThroughputRate(),
-                            mapRate.getThroughputRate());
+                    log.info("putRate:{},storeRate:{},indexRate:{},messageRate:{}",
+                            putRate.getThroughputRate(), storeRate.getThroughputRate(),
+                            indexRate.getThroughputRate(),messageRate.getThroughputRate());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -95,7 +97,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
         ArrayList<Message> res = new ArrayList<>();
         for (int t = tMinI; t <= tMaxI; t++) {
             List<Result> results = filterResult(t, aMin, aMax);
-            mapRate.note();
             for (Result result : results) {
                 long a = result.getA();
                 ByteBuffer byteBuffer = ByteBuffer.allocate(34);
@@ -107,6 +108,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
         }
 
         res.sort(Comparator.comparingLong(Message::getT));
+        messageRate.note();
         return res;
     }
 
@@ -119,7 +121,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
                 int a = result.a;
                 if (aMin <= a && a <= aMax) {
                     results.add(new Result(t, a));
-                    getRate.note();
+                    storeRate.note();
                 }
             }
             return results;
@@ -131,7 +133,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
             int a = t + Gap + i;
             if (aMin <= a && a <= aMax) {
                 results.add(new Result(t, a));
-                getRate.note();
+                storeRate.note();
               }
         }
 
@@ -146,12 +148,12 @@ public class DefaultMessageStoreImpl extends MessageStore {
         int tMaxI = ((Long) tMax).intValue();
         for (int t = tMinI; t <= tMaxI; t++) {
             List<Result> results = filterResult(t, aMin, aMax);
-            mapRate.note();
             for (Result result : results) {
                 sum += result.getA();
                 count++;
             }
         }
+        indexRate.note();
         return count == 0 ? 0 : sum / count;
     }
 
