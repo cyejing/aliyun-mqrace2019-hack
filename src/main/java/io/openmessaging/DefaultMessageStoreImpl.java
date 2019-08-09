@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.xml.bind.DatatypeConverter;
@@ -88,9 +89,15 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     private Semaphore semaphore = new Semaphore(1); //FULL GC
 
+    private AtomicBoolean jit = new AtomicBoolean(false);
+
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
-        getAvgValue(aMin, aMax, tMin, tMax); //JIT
+        if (jit.compareAndSet(false, true)) {
+            for (int i = 0; i < 50000; i++) {
+                getAvgValue(aMin, aMax, tMin, tMax); //JIT
+            }
+        }
         try {
             semaphore.acquire();
             int tMinI = ((Long) tMin).intValue();
