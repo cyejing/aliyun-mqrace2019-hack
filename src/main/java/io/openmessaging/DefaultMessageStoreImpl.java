@@ -21,10 +21,11 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     private static final String BodySuffix = "0D2125260B5E5B2B0C3741265C0C36070000";
     private static final int Preheat = 150000;
+    private static final int Gap = 32773;
 
-    private IndexRecord[] indexRecords = new IndexRecord[1024 *1024* 800];
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
+    private ByteBuffer store = ByteBuffer.allocateDirect(1024 * 1024 * 1000);
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
@@ -49,8 +50,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     private AtomicInteger adder = new AtomicInteger(0);
     private volatile Integer boundary = null;
-    private volatile Integer boundaryHeap = null; //1035343660
-
 
     @Override
     public synchronized void put(Message message) {
@@ -69,11 +68,14 @@ public class DefaultMessageStoreImpl extends MessageStore {
             }
             results.add(new Result(t, a));
         } else {
-            int index = t - boundary;
-            if (indexRecords[index] == null) {
-                indexRecords[index] = new IndexRecord();
+            int index = (t - boundary) * 2;
+            int gap = a - t - Gap;
+            store.position(index);
+            int aSize = ByteUtil.getInt(store.get(),store.get());
+            if (gap > aSize) {
+                store.position(index);
+                store.put(ByteUtil.toIntBytes(gap));
             }
-            indexRecords[index].addA(a);
         }
 
         putRate.note();
@@ -120,24 +122,18 @@ public class DefaultMessageStoreImpl extends MessageStore {
             return results;
         }
 
-        int index = t - this.boundary;
-        IndexRecord indexRecord = this.indexRecords[index];
-        if (indexRecord.size == 1) {
-            int a = indexRecord.minA;
+        int index = (t - this.boundary) * 2;
+        ByteBuffer read = store.asReadOnlyBuffer();
+        read.position(index);
+        int aSize = ByteUtil.getInt(read.get(),read.get());
+        for (int i = 0; i <= aSize; i++) {
+            int a = t + Gap + i;
             if (aMin <= a && a <= aMax) {
                 results.add(new Result(t, a));
                 getRate.note();
-            }
-        } else {
-            for (int i = 0; i < indexRecord.size; i++) {
-                int a = indexRecord.minA + i;
-//                    int a = entry.getValue().minA;
-                if (aMin <= a && a <= aMax) {
-                    results.add(new Result(t, a));
-                    getRate.note();
-                }
-            }
+              }
         }
+
         return results;
     }
 
@@ -161,18 +157,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
         return count == 0 ? 0 : sum / count;
     }
 
-    class IndexRecord {
-        int minA = Integer.MAX_VALUE;
-        int size = 0;
-
-        public synchronized boolean addA(int a) {
-            if (a < minA) {
-                minA = a;
-            }
-            size++;
-            return true;
-        }
-    }
 
     class Result{
         int a;
