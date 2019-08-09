@@ -55,7 +55,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     private volatile Integer boundary = null;
 
     @Override
-    public synchronized void put(Message message) {
+    public void put(Message message) {
         int t = ((Long) message.getT()).intValue();
         int a = ((Long) message.getA()).intValue();
         if (boundary == null) {
@@ -89,16 +89,18 @@ public class DefaultMessageStoreImpl extends MessageStore {
                 log.error("index overflow:{}", index);
                 throw e;
             }
-
         }
+
+        putRate.note();
     }
 
-    private Semaphore semaphore = new Semaphore(2); //FULL GC
+    private Semaphore semaphore = new Semaphore(3); //FULL GC
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
         try {
             semaphore.acquire();
+            Thread.sleep(10);
             int tMinI = ((Long) tMin).intValue();
             int tMaxI = ((Long) tMax).intValue();
             ArrayList<Message> res = new ArrayList<>();
@@ -170,7 +172,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
                 continue;
             }
 
-            if (aSize > 0 && aMin < (t + Gap) && (t + Gap + aSize) < aMax) {
+            if (aSize > 0 && aMin <= (t + Gap) && (t + Gap + aSize) <= aMax) {
                 sum += avgSum.get(t).get();
                 count += aSize + 1;
                 continue;
