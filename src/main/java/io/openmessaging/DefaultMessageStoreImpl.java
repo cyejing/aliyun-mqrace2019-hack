@@ -25,7 +25,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
-    private ByteBuffer store = ByteBuffer.allocateDirect(1024 * 1024 * 1000);
+    private ByteBuffer store = ByteBuffer.allocateDirect(1024 * 1024 * 1945);
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
