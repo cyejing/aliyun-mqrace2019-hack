@@ -83,8 +83,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
             }
 
         }
-
-        putRate.note();
     }
 
     private Semaphore semaphore = new Semaphore(2); //FULL GC
