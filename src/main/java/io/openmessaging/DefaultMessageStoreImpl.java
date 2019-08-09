@@ -114,7 +114,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
                     genMessage(res, t, a);
                 }
             }
-
         }
 
         res.sort(Comparator.comparingLong(Message::getT));
@@ -159,7 +158,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
                 }
             }
         }
-        indexRate.note();
         return count == 0 ? 0 : sum / count;
     }
 
