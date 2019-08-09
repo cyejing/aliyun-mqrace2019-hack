@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.xml.bind.DatatypeConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
     private ByteBuffer store = ByteBuffer.allocateDirect(1024 * 1024 * 1986);
+    private ConcurrentHashMap<Integer, AtomicLong> avgSum = new ConcurrentHashMap<>();
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
@@ -76,6 +78,12 @@ public class DefaultMessageStoreImpl extends MessageStore {
                     byte[] bytes = ByteUtil.toIntBytes(gap);
                     store.put(index,bytes[0]);
                     store.put(index+1,bytes[1]);
+                }
+                if (gap > 0) {
+                    if (avgSum.get(t) == null) {
+                        avgSum.putIfAbsent(t, new AtomicLong(t + Gap));
+                    }
+                    avgSum.get(t).addAndGet(a);
                 }
             } catch (Exception e) {
                 log.error("index overflow:{}", index);
@@ -157,6 +165,17 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
             int index = (t - this.boundary) * 2;
             int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
+
+            if ((t + Gap + aSize) < aMin || aMax < (t + Gap)) {
+                continue;
+            }
+
+            if (aSize > 0 && aMin < (t + Gap) && (t + Gap + aSize) < aMax) {
+                sum += avgSum.get(t).get();
+                count += aSize + 1;
+                continue;
+            }
+
             for (int i = 0; i <= aSize; i++) {
                 int a = t + Gap + i;
                 if (aMin <= a && a <= aMax) {
