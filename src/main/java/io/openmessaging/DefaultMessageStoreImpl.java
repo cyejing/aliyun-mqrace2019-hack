@@ -53,7 +53,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     private volatile Integer boundary = null;
 
     @Override
-    public void put(Message message) {
+    public synchronized void put(Message message) {
         int t = ((Long) message.getT()).intValue();
         int a = ((Long) message.getA()).intValue();
         if (boundary == null) {
