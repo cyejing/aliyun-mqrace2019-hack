@@ -6,6 +6,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.xml.bind.DatatypeConverter;
@@ -86,38 +87,48 @@ public class DefaultMessageStoreImpl extends MessageStore {
         putRate.note();
     }
 
+    private Semaphore semaphore = new Semaphore(5); //FULL GC
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
-        int tMinI = ((Long) tMin).intValue();
-        int tMaxI = ((Long) tMax).intValue();
-        ArrayList<Message> res = new ArrayList<>();
-        for (int t = tMinI; t <= tMaxI; t++) {
-            if (t < this.boundary) {
-                List<Result> dirtyResult = dirtyMap.get(t);
-                for (Result result : dirtyResult) {
-                    int a = result.a;
+        try {
+            semaphore.acquire();
+            int tMinI = ((Long) tMin).intValue();
+            int tMaxI = ((Long) tMax).intValue();
+            ArrayList<Message> res = new ArrayList<>();
+            for (int t = tMinI; t <= tMaxI; t++) {
+                if (t < this.boundary) {
+                    List<Result> dirtyResult = dirtyMap.get(t);
+                    for (Result result : dirtyResult) {
+                        int a = result.a;
+                        if (aMin <= a && a <= aMax) {
+                            genMessage(res, t, a);
+                        }
+                    }
+                    continue;
+                }
+
+                int index = (t - this.boundary) * 2;
+                int aSize = ByteUtil.getInt(store.get(index), store.get(index + 1));
+                for (int i = 0; i <= aSize; i++) {
+                    int a = t + Gap + i;
                     if (aMin <= a && a <= aMax) {
                         genMessage(res, t, a);
                     }
                 }
-                continue;
             }
 
-            int index = (t - this.boundary) * 2;
-            int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
-            for (int i = 0; i <= aSize; i++) {
-                int a = t + Gap + i;
-                if (aMin <= a && a <= aMax) {
-                    genMessage(res, t, a);
-                }
-            }
+            res.sort(Comparator.comparingLong(Message::getT));
+            messageRate.note();
+            return res;
+        } catch (InterruptedException e) {
+            log.error("", e);
+            throw new RuntimeException(e);
+        }finally {
+            semaphore.release();
         }
-
-        res.sort(Comparator.comparingLong(Message::getT));
-        messageRate.note();
-        return res;
     }
+
 
     private void genMessage(ArrayList<Message> res, int t, int a) {
         ByteBuffer byteBuffer = ByteBuffer.allocate(34);
