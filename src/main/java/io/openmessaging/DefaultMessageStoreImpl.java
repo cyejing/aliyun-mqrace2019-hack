@@ -28,7 +28,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
     private ByteBuffer store = ByteBuffer.allocateDirect(1024 * 1024 * 1986);
-    private ConcurrentHashMap<Integer, AtomicLong> avgSum = new ConcurrentHashMap<>();
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
@@ -78,12 +77,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
                     byte[] bytes = ByteUtil.toIntBytes(gap);
                     store.put(index,bytes[0]);
                     store.put(index+1,bytes[1]);
-                }
-                if (gap > 0) {
-                    if (avgSum.get(t) == null) {
-                        avgSum.putIfAbsent(t, new AtomicLong(t + Gap));
-                    }
-                    avgSum.get(t).addAndGet(a);
                 }
             } catch (Exception e) {
                 log.error("index overflow:{}", index);
@@ -168,12 +161,14 @@ public class DefaultMessageStoreImpl extends MessageStore {
             int index = (t - this.boundary) * 2;
             int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
 
-            if ((t + Gap + aSize) < aMin || aMax < (t + Gap)) {
+            int aiMin = t + Gap;
+            int aiMax = t + Gap + aSize;
+            if (aiMax < aMin || aMax < aiMin) {
                 continue;
             }
 
-            if (aSize > 0 && aMin <= (t + Gap) && (t + Gap + aSize) <= aMax) {
-                sum += avgSum.get(t).get();
+            if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
+                sum += ((long)(aiMax + aiMin) * (aiMax - aiMin + 1)) >>> 1;
                 count += aSize + 1;
                 continue;
             }
