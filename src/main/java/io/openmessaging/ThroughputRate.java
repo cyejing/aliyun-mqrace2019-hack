@@ -23,9 +23,9 @@ public class ThroughputRate {
     }
 
     public int note() {
-//        checkAndSet();
-//        return throughput.incrementAndGet();
-        return 0;
+        checkAndSet();
+        return throughput.incrementAndGet();
+//        return 0;
     }
 
     public double getThroughputRate() {
