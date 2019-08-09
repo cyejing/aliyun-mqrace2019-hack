@@ -54,7 +54,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     private volatile Integer boundary = null;
 
     @Override
-    public void put(Message message) {
+    public synchronized void put(Message message) {
         int t = ((Long) message.getT()).intValue();
         int a = ((Long) message.getA()).intValue();
         if (boundary == null) {
@@ -84,7 +84,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
             }
         }
 
-        putRate.note();
     }
 
     private Semaphore semaphore = new Semaphore(2); //FULL GC
@@ -142,9 +141,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     public long getAvgValue(long aMin, long aMax, long tMin, long tMax) {
         long sum = 0;
         long count = 0;
-        int tMinI = ((Long) tMin).intValue();
-        int tMaxI = ((Long) tMax).intValue();
-        for (int t = tMinI; t <= tMaxI; t++) {
+        for (int t = (int)tMin; t <= tMax; t++) {
             if (t < this.boundary) {
                 List<Result> dirtyResult = dirtyMap.get(t);
                 for (Result result : dirtyResult) {
