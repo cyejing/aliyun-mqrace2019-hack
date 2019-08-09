@@ -71,11 +71,11 @@ public class DefaultMessageStoreImpl extends MessageStore {
             int index = (t - boundary) * 2;
             int gap = a - t - Gap;
             try {
-                store.position(index);
-                int aSize = ByteUtil.getInt(store.get(),store.get());
+                int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
                 if (gap > aSize) {
-                    store.position(index);
-                    store.put(ByteUtil.toIntBytes(gap));
+                    byte[] bytes = ByteUtil.toIntBytes(gap);
+                    store.put(index,bytes[0]);
+                    store.put(index+1,bytes[1]);
                 }
             } catch (Exception e) {
                 log.error("index overflow:{}", index);
@@ -90,9 +90,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
-        if (ThreadLocalRandom.current().nextInt(500) == 1) {
-            log.info("getMessage aMin:{},aMax:{},tMin:{},tMax:{},aDev:{},tDev{}", aMin, aMax, tMin, tMax, aMax - aMin, tMax - tMin);
-        }
         int tMinI = ((Long) tMin).intValue();
         int tMaxI = ((Long) tMax).intValue();
         ArrayList<Message> res = new ArrayList<>();
@@ -129,9 +126,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
         }
 
         int index = (t - this.boundary) * 2;
-        ByteBuffer read = store.asReadOnlyBuffer();
-        read.position(index);
-        int aSize = ByteUtil.getInt(read.get(),read.get());
+        int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
         for (int i = 0; i <= aSize; i++) {
             int a = t + Gap + i;
             if (aMin <= a && a <= aMax) {
@@ -145,9 +140,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     @Override
     public long getAvgValue(long aMin, long aMax, long tMin, long tMax) {
-        if (ThreadLocalRandom.current().nextInt(500) == 1) {
-            log.info("getAvgValue aMin:{},aMax:{},tMin:{},tMax:{},aDev:{},tDev{}", aMin, aMax, tMin, tMax, aMax - aMin, tMax - tMin);
-        }
         long sum = 0;
         long count = 0;
         int tMinI = ((Long) tMin).intValue();
