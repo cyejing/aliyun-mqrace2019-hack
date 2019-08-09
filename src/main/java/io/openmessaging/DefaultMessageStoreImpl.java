@@ -86,13 +86,13 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(3); //FULL GC
+    private Semaphore semaphore = new Semaphore(2); //FULL GC
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
+        getAvgValue(aMin, aMax, tMin, tMax); //JIT
         try {
             semaphore.acquire();
-            Thread.sleep(10);
             int tMinI = ((Long) tMin).intValue();
             int tMaxI = ((Long) tMax).intValue();
             ArrayList<Message> res = new ArrayList<>();
