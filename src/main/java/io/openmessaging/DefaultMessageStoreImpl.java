@@ -87,7 +87,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(1); //FULL GC
+    private Semaphore semaphore = new Semaphore(3); //FULL GC
 
     private AtomicBoolean jit = new AtomicBoolean(false);
 
