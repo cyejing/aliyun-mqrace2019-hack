@@ -86,12 +86,13 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(2); //FULL GC
+    private Semaphore semaphore = new Semaphore(3); //FULL GC
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
         try {
             semaphore.acquire();
+            Thread.sleep(10);
             int tMinI = ((Long) tMin).intValue();
             int tMaxI = ((Long) tMax).intValue();
             ArrayList<Message> res = new ArrayList<>();
@@ -157,14 +158,14 @@ public class DefaultMessageStoreImpl extends MessageStore {
             int index = (t - this.boundary) * 2;
             int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
 
-            int aiMin = t + Gap;
-            int aiMax = t + Gap + aSize;
+            long aiMin = t + Gap;
+            long aiMax = t + Gap + aSize;
             if (aiMax < aMin || aMax < aiMin) {
                 continue;
             }
 
             if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
-                sum += ((long)(aiMax + aiMin) * (aiMax - aiMin + 1)) >>> 1;
+                sum += ((aiMax + aiMin) * (aiMax - aiMin + 1)) >>> 1;
                 count += aSize + 1;
                 continue;
             }
