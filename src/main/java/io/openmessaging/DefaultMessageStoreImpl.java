@@ -87,7 +87,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
         putRate.note();
     }
 
-    private Semaphore semaphore = new Semaphore(3); //FULL GC
+    private Semaphore semaphore = new Semaphore(2); //FULL GC
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
