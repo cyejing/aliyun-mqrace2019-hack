@@ -53,7 +53,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
         ByteBuffer.allocate(1024 * 1024 * 1024); //FULL GC
         ByteBuffer.allocate(1024 * 1024 * 1024); //FULL GC
         ByteBuffer.allocate(1024 * 1024 * 1024); //FULL GC
-        ByteBuffer.allocate(1024 * 1024 * 624); //FULL GC
     }
 
     private volatile Integer boundary = null;
