@@ -40,10 +40,9 @@ public class DefaultMessageStoreImpl extends MessageStore {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    log.info("putRate:{},indexRate:{},messageRate:{},getMessage:{},getAvg:{}",
+                    log.info("putRate:{},indexRate:{},messageRate:{}",
                             putRate.getThroughputRate(),
-                            indexRate.getThroughputRate(), messageRate.getThroughputRate(),
-                            getMessageCount.get(), getAvgCount.get());
+                            indexRate.getThroughputRate(), messageRate.getThroughputRate());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -88,17 +87,18 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(3); //FULL GC
-
-    private AtomicLong getMessageCount = new AtomicLong(0);
-    private AtomicLong getAvgCount = new AtomicLong(0);
+    private Semaphore semaphore = new Semaphore(6); //FULL GC
+    private ConcurrentHashMap<String, Long> avgCache = new ConcurrentHashMap();
 
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
-        getMessageCount.incrementAndGet();
+        String key = aMin + "-" + aMax + "-" + tMin + "-" + tMax;
+        long avgValue = getAvgValue(aMin, aMax, tMin, tMax);
+        avgCache.putIfAbsent(key, avgValue);
         try {
             semaphore.acquire();
+            Thread.sleep(10L);
             int tMinI = ((Long) tMin).intValue();
             int tMaxI = ((Long) tMax).intValue();
             ArrayList<Message> res = new ArrayList<>();
@@ -146,7 +146,12 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     @Override
     public long getAvgValue(long aMin, long aMax, long tMin, long tMax) {
-        getAvgCount.incrementAndGet();
+        String key = aMin + "-" + aMax + "-" + tMin + "-" + tMax;
+        Long avg = avgCache.get(key);
+        if (avg != null) {
+            return avg;
+        }
+
         long sum = 0;
         long count = 0;
         for (int t = (int)tMin; t <= tMax; t++) {
