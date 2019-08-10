@@ -87,7 +87,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(4); //FULL GC
+    private Semaphore semaphore = new Semaphore(2); //FULL GC
     private ConcurrentHashMap<String, Long> avgCache = new ConcurrentHashMap();
 
 
