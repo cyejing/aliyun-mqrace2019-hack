@@ -51,15 +51,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
         }, "printLog");
         printLog.setDaemon(true);
         printLog.start();
-        try {
-            ByteBuffer allocate = ByteBuffer.allocate(1024 * 1024 * 2024);
-            allocate.putInt(Integer.MAX_VALUE);
-            allocate.putInt(Integer.MAX_VALUE);
-            allocate.putInt(Integer.MAX_VALUE);
-            allocate = null;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        ByteBuffer allocate = ByteBuffer.allocate(1024 * 1024 * 2048); //FULL GC
     }
 
     private volatile Integer boundary = null;
@@ -97,7 +89,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(4); //FULL GC
+    private Semaphore semaphore = new Semaphore(3); //FULL GC
     private ConcurrentHashMap<String, Long> avgCache = new ConcurrentHashMap();
 
 
@@ -105,7 +97,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
         try {
             semaphore.acquire();
-            Thread.sleep(30L);
             int tMinI = ((Long) tMin).intValue();
             int tMaxI = ((Long) tMax).intValue();
             ArrayList<Message> res = new ArrayList<>();
