@@ -40,9 +40,10 @@ public class DefaultMessageStoreImpl extends MessageStore {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    log.info("putRate:{},indexRate:{},messageRate:{}",
+                    log.info("putRate:{},indexRate:{},messageRate:{},getMessage:{},getAvg:{}",
                             putRate.getThroughputRate(),
-                            indexRate.getThroughputRate(),messageRate.getThroughputRate());
+                            indexRate.getThroughputRate(), messageRate.getThroughputRate(),
+                            getMessageCount.get(), getAvgCount.get());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -89,15 +90,13 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     private Semaphore semaphore = new Semaphore(3); //FULL GC
 
-    private AtomicBoolean jit = new AtomicBoolean(false);
+    private AtomicLong getMessageCount = new AtomicLong(0);
+    private AtomicLong getAvgCount = new AtomicLong(0);
+
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
-        if (jit.compareAndSet(false, true)) {
-            for (int i = 0; i < 20000; i++) {
-                getAvgValue(aMin, aMax, tMin, tMax); //JIT
-            }
-        }
+        getMessageCount.incrementAndGet();
         try {
             semaphore.acquire();
             int tMinI = ((Long) tMin).intValue();
@@ -147,6 +146,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     @Override
     public long getAvgValue(long aMin, long aMax, long tMin, long tMax) {
+        getAvgCount.incrementAndGet();
         long sum = 0;
         long count = 0;
         for (int t = (int)tMin; t <= tMax; t++) {
