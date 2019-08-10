@@ -51,6 +51,13 @@ public class DefaultMessageStoreImpl extends MessageStore {
         }, "printLog");
         printLog.setDaemon(true);
         printLog.start();
+        try {
+            ByteBuffer allocate = ByteBuffer.allocate(1024 * 1024 * 1024 * 2);
+            Thread.sleep(10L);
+            allocate = null;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private volatile Integer boundary = null;
@@ -88,7 +95,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(2); //FULL GC
+    private Semaphore semaphore = new Semaphore(4); //FULL GC
     private ConcurrentHashMap<String, Long> avgCache = new ConcurrentHashMap();
 
 
