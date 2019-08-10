@@ -88,18 +88,15 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(2); //FULL GC
+    private Semaphore semaphore = new Semaphore(1); //FULL GC
     private ConcurrentHashMap<String, Long> avgCache = new ConcurrentHashMap();
 
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
-        String key = aMin + "-" + aMax + "-" + tMin + "-" + tMax;
-        long avgValue = getAvgValue(aMin, aMax, tMin, tMax);
-        avgCache.putIfAbsent(key, avgValue);
         try {
             semaphore.acquire();
-            Thread.sleep(10L);
+            Thread.sleep(30L);
             int tMinI = ((Long) tMin).intValue();
             int tMaxI = ((Long) tMax).intValue();
             ArrayList<Message> res = new ArrayList<>();
