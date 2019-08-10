@@ -40,9 +40,10 @@ public class DefaultMessageStoreImpl extends MessageStore {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    log.info("putRate:{},indexRate:{},messageRate:{}",
+                    log.info("putRate:{},indexRate:{},messageRate:{},getAvg:{}.cacheRate:{}",
                             putRate.getThroughputRate(),
-                            indexRate.getThroughputRate(), messageRate.getThroughputRate());
+                            indexRate.getThroughputRate(), messageRate.getThroughputRate(),
+                            getAvg.get(),getAvg.get()==0?0:cacheHit.get()/getAvg.get());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -144,11 +145,15 @@ public class DefaultMessageStoreImpl extends MessageStore {
         res.add(new Message(a, t, byteBuffer.array()));
     }
 
+    AtomicInteger cacheHit = new AtomicInteger(0);
+    AtomicInteger getAvg = new AtomicInteger(0);
     @Override
     public long getAvgValue(long aMin, long aMax, long tMin, long tMax) {
+        getAvg.incrementAndGet();
         String key = aMin + "-" + aMax + "-" + tMin + "-" + tMax;
         Long avg = avgCache.get(key);
         if (avg != null) {
+            cacheHit.incrementAndGet();
             return avg;
         }
 
