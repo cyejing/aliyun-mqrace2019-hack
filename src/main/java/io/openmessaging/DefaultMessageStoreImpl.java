@@ -51,7 +51,10 @@ public class DefaultMessageStoreImpl extends MessageStore {
         }, "printLog");
         printLog.setDaemon(true);
         printLog.start();
-        ByteBuffer allocate = ByteBuffer.allocate(1024 * 1024 * 2024); //FULL GC
+        ByteBuffer.allocate(1024 * 1024 * 1024); //FULL GC
+        ByteBuffer.allocate(1024 * 1024 * 1024); //FULL GC
+        ByteBuffer.allocate(1024 * 1024 * 1024); //FULL GC
+        ByteBuffer.allocate(1024 * 1024 * 624); //FULL GC
     }
 
     private volatile Integer boundary = null;
@@ -89,7 +92,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(3); //FULL GC
+    private Semaphore semaphore = new Semaphore(2); //FULL GC
     private ConcurrentHashMap<String, Long> avgCache = new ConcurrentHashMap();
 
 
@@ -142,18 +145,8 @@ public class DefaultMessageStoreImpl extends MessageStore {
         res.add(new Message(a, t, byteBuffer.array()));
     }
 
-    AtomicInteger cacheHit = new AtomicInteger(0);
-    AtomicInteger getAvg = new AtomicInteger(0);
     @Override
     public long getAvgValue(long aMin, long aMax, long tMin, long tMax) {
-        getAvg.incrementAndGet();
-        String key = aMin + "-" + aMax + "-" + tMin + "-" + tMax;
-        Long avg = avgCache.get(key);
-        if (avg != null) {
-            cacheHit.incrementAndGet();
-            return avg;
-        }
-
         long sum = 0;
         long count = 0;
         for (int t = (int)tMin; t <= tMax; t++) {
