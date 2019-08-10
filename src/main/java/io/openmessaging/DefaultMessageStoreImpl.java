@@ -94,7 +94,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
         if (jit.compareAndSet(false, true)) {
-            for (int i = 0; i < 50000; i++) {
+            for (int i = 0; i < 20000; i++) {
                 getAvgValue(aMin, aMax, tMin, tMax); //JIT
             }
         }
