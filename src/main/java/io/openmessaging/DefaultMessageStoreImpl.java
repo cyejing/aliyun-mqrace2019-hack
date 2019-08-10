@@ -52,8 +52,10 @@ public class DefaultMessageStoreImpl extends MessageStore {
         printLog.setDaemon(true);
         printLog.start();
         try {
-            ByteBuffer allocate = ByteBuffer.allocate(1024 * 1024 * 1024 * 2);
-            Thread.sleep(10L);
+            ByteBuffer allocate = ByteBuffer.allocate(1024 * 1024 * 2024);
+            allocate.putInt(Integer.MAX_VALUE);
+            allocate.putInt(Integer.MAX_VALUE);
+            allocate.putInt(Integer.MAX_VALUE);
             allocate = null;
         } catch (Exception e) {
             e.printStackTrace();
