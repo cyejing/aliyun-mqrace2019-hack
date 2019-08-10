@@ -40,10 +40,9 @@ public class DefaultMessageStoreImpl extends MessageStore {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    log.info("putRate:{},indexRate:{},messageRate:{},getAvg:{}.cacheRate:{}",
+                    log.info("putRate:{},indexRate:{},messageRate:{}",
                             putRate.getThroughputRate(),
-                            indexRate.getThroughputRate(), messageRate.getThroughputRate(),
-                            getAvg.get(),getAvg.get()==0?0:cacheHit.get()/getAvg.get());
+                            indexRate.getThroughputRate(), messageRate.getThroughputRate());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
