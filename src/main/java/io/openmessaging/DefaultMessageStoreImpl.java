@@ -51,7 +51,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
         }, "printLog");
         printLog.setDaemon(true);
         printLog.start();
-        ByteBuffer allocate = ByteBuffer.allocate(1024 * 1024 * 2048); //FULL GC
+        ByteBuffer allocate = ByteBuffer.allocate(1024 * 1024 * 2024); //FULL GC
     }
 
     private volatile Integer boundary = null;
