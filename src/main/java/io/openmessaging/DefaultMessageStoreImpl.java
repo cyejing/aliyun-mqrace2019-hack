@@ -1,13 +1,12 @@
 package io.openmessaging;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.Map.Entry;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -16,10 +15,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 这是一个简单的基于内存的实现，以方便选手理解题意；
- * 实际提交时，请维持包名和类名不变，把方法实现修改为自己的内容；
+ * 这是一个简单的基于内存的实现，以方便选手理解题意； 实际提交时，请维持包名和类名不变，把方法实现修改为自己的内容；
  */
 public class DefaultMessageStoreImpl extends MessageStore {
+
     private static final Logger log = LoggerFactory.getLogger(DefaultMessageStoreImpl.class);
 
     private static final String BodySuffix = "0D2125260B5E5B2B0C3741265C0C36070000";
@@ -28,7 +27,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
-    private ByteBuffer store = ByteBuffer.allocate(1024 * 1024 * 1986);
+    private ByteBuffer store = ByteBuffer.allocateDirect(1024 * 1024 * 1986);
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
@@ -50,7 +49,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
         }, "printLog");
         printLog.setDaemon(true);
         printLog.start();
-        ByteBuffer.allocate(1024 * 1024 * 1024); //FULL GC
+        ByteBuffer.allocate(1024 * 1024 * 2023); //FULL GC
     }
 
     private volatile Integer boundary = null;
@@ -74,11 +73,11 @@ public class DefaultMessageStoreImpl extends MessageStore {
             int index = (t - boundary) * 2;
             int gap = a - t - Gap;
             try {
-                int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
+                int aSize = ByteUtil.getInt(store.get(index), store.get(index + 1));
                 if (gap > aSize) {
                     byte[] bytes = ByteUtil.toIntBytes(gap);
-                    store.put(index,bytes[0]);
-                    store.put(index+1,bytes[1]);
+                    store.put(index, bytes[0]);
+                    store.put(index + 1, bytes[1]);
                 }
             } catch (Exception e) {
                 log.error("index overflow:{}", index);
@@ -89,7 +88,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
     }
 
     private Semaphore semaphore = new Semaphore(2); //FULL GC
-    private ConcurrentHashMap<String, Long> avgCache = new ConcurrentHashMap();
 
 
     @Override
@@ -127,7 +125,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
         } catch (InterruptedException e) {
             log.error("", e);
             throw new RuntimeException(e);
-        }finally {
+        } finally {
             semaphore.release();
         }
     }
@@ -145,7 +143,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     public long getAvgValue(long aMin, long aMax, long tMin, long tMax) {
         long sum = 0;
         long count = 0;
-        for (int t = (int)tMin; t <= tMax; t++) {
+        for (int t = (int) tMin; t <= tMax; t++) {
             if (t < this.boundary) {
                 List<Result> dirtyResult = dirtyMap.get(t);
                 for (Result result : dirtyResult) {
@@ -159,7 +157,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
             }
 
             int index = (t - this.boundary) * 2;
-            int aSize = ByteUtil.getInt(store.get(index),store.get(index+1));
+            int aSize = ByteUtil.getInt(store.get(index), store.get(index + 1));
 
             long aiMin = t + Gap;
             long aiMax = t + Gap + aSize;
@@ -185,7 +183,8 @@ public class DefaultMessageStoreImpl extends MessageStore {
     }
 
 
-    class Result{
+    class Result {
+
         int a;
         int t;
 
