@@ -114,6 +114,9 @@ public class DefaultMessageStoreImpl extends MessageStore {
                     store.put(index+1, bytes[1]);
                 }
             }
+            for (int i = 0; i < 20000; i++) {
+                getAvgValue(aMin, aMax, tMin, tMax); //JIT
+            }
         }
         try {
             semaphore.acquire();
@@ -203,7 +206,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
         sum += ((acMax + acMin) * (acMax - acMin + 1)) >>> 1;
         count += indexMax - indexMin + 1;
 
-//        skip loop
         for (int t = tsMin; t <= tMax; t++) {
             int index = (t - this.boundary) * 2;
             byte[] bytes = new byte[]{ store.get(index), store.get(index+1)};
