@@ -223,11 +223,11 @@ public class DefaultMessageStoreImpl extends MessageStore {
                 continue;
             }
 
-//            if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
-//                sum += ((aiMax + (aiMin+1)) * (aiMax - (aiMin+1) + 1)) >>> 1;
-//                count += aSize + 1;
-//                continue;
-//            }
+            if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
+                sum += ((aiMax + (aiMin+1)) * (aiMax - (aiMin+1) + 1)) >>> 1;
+                count += aSize;
+                continue;
+            }
 
             for (int i = 1; i <= aSize; i++) {
                 int a = t + Gap + i;
@@ -235,6 +235,13 @@ public class DefaultMessageStoreImpl extends MessageStore {
                     sum += a;
                     count++;
                 }
+            }
+
+            byte[] nextBytes = new byte[]{ store.get(index+2), store.get(index+3)};
+            if ((byte) (nextBytes[0] & Flag) == Flag) {
+                nextBytes[0] = (byte) (nextBytes[0] ^ Flag);
+                int skip = ByteUtil.getInt(nextBytes[0], nextBytes[1]);
+                t = t + skip;
             }
 
         }
