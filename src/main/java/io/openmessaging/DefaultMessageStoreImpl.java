@@ -2,10 +2,16 @@ package io.openmessaging;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,6 +30,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     private static final String BodySuffix = "0D2125260B5E5B2B0C3741265C0C36070000";
     private static final int Preheat = 50000;
     private static final int Gap = 32773;
+    private static final byte Flag = (byte) 0x80;
 
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
@@ -87,11 +94,27 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     }
 
-    private Semaphore semaphore = new Semaphore(2); //FULL GC
+    private Semaphore semaphore = new Semaphore(3); //FULL GC
+    private AtomicBoolean calc = new AtomicBoolean(false);
 
 
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
+        if (calc.compareAndSet(false, true)) {
+            int skip = -1;
+            for (int i = (store.limit() / 2)-1; i >= 0; i--) {
+                int index = i * 2;
+                int aSize = ByteUtil.getInt(store.get(index), store.get(index+1));
+                if (aSize > 0) {
+                    skip = 0;
+                } else if (aSize == 0 && skip != -1) {
+                    byte[] bytes = ByteUtil.toIntBytes(++skip);
+                    bytes[0] = (byte) (bytes[0] ^ Flag);  //flag
+                    store.put(index, bytes[0]);
+                    store.put(index+1, bytes[1]);
+                }
+            }
+        }
         try {
             semaphore.acquire();
             int tMinI = ((Long) tMin).intValue();
@@ -110,7 +133,14 @@ public class DefaultMessageStoreImpl extends MessageStore {
                 }
 
                 int index = (t - this.boundary) * 2;
-                int aSize = ByteUtil.getInt(store.get(index), store.get(index + 1));
+                byte[] bytes = new byte[]{ store.get(index), store.get(index+1)};
+                int aSize;
+                if ((byte) (bytes[0] & Flag) == Flag) {
+                    aSize = 0;
+                }else{
+                    aSize = ByteUtil.getInt(bytes[0], bytes[1]);
+                }
+
                 for (int i = 0; i <= aSize; i++) {
                     int a = t + Gap + i;
                     if (aMin <= a && a <= aMax) {
@@ -143,8 +173,13 @@ public class DefaultMessageStoreImpl extends MessageStore {
     public long getAvgValue(long aMin, long aMax, long tMin, long tMax) {
         long sum = 0;
         long count = 0;
-        for (int t = (int) tMin; t <= tMax; t++) {
-            if (t < this.boundary) {
+
+        int tsMin = (int) tMin;
+        int indexMax = (int) Math.min(tMax, aMax - Gap);
+
+        if (tsMin < this.boundary) {
+            int length = (int) Math.min(this.boundary-1, tMax);
+            for (int t = tsMin; t <= length; t++) {
                 List<Result> dirtyResult = dirtyMap.get(t);
                 for (Result result : dirtyResult) {
                     int a = result.a;
@@ -153,11 +188,34 @@ public class DefaultMessageStoreImpl extends MessageStore {
                         count++;
                     }
                 }
+            }
+            if (indexMax < this.boundary) {
+                return count == 0 ? 0 : sum / count;
+            }
+
+            tsMin = this.boundary;
+        }
+
+        int indexMin = (int) Math.max(tsMin, aMin - Gap);
+
+        long acMin = indexMin + Gap;
+        long acMax = indexMax + Gap;
+        sum += ((acMax + acMin) * (acMax - acMin + 1)) >>> 1;
+        count += indexMax - indexMin + 1;
+
+//        skip loop
+        for (int t = tsMin; t <= tMax; t++) {
+            int index = (t - this.boundary) * 2;
+            byte[] bytes = new byte[]{ store.get(index), store.get(index+1)};
+
+            if ((byte) (bytes[0] & Flag) == Flag) {
+                bytes[0] = (byte) (bytes[0] ^ Flag);
+                int skip = ByteUtil.getInt(bytes[0], bytes[1]);
+                t = t + skip - 1;
                 continue;
             }
 
-            int index = (t - this.boundary) * 2;
-            int aSize = ByteUtil.getInt(store.get(index), store.get(index + 1));
+            int aSize = ByteUtil.getInt(bytes[0], bytes[1]);
 
             long aiMin = t + Gap;
             long aiMax = t + Gap + aSize;
@@ -165,23 +223,24 @@ public class DefaultMessageStoreImpl extends MessageStore {
                 continue;
             }
 
-            if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
-                sum += ((aiMax + aiMin) * (aiMax - aiMin + 1)) >>> 1;
-                count += aSize + 1;
-                continue;
-            }
+//            if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
+//                sum += ((aiMax + (aiMin+1)) * (aiMax - (aiMin+1) + 1)) >>> 1;
+//                count += aSize + 1;
+//                continue;
+//            }
 
-            for (int i = 0; i <= aSize; i++) {
+            for (int i = 1; i <= aSize; i++) {
                 int a = t + Gap + i;
                 if (aMin <= a && a <= aMax) {
                     sum += a;
                     count++;
                 }
             }
+
         }
+
         return count == 0 ? 0 : sum / count;
     }
-
 
     class Result {
 
@@ -219,6 +278,5 @@ public class DefaultMessageStoreImpl extends MessageStore {
             return Objects.hash(getA(), getT());
         }
     }
-
 
 }
