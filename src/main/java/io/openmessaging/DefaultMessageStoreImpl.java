@@ -219,11 +219,11 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
             int aSize = ByteUtil.getInt(bytes[0], bytes[1]);
 
-//            long aiMin = t + Gap;
-//            long aiMax = t + Gap + aSize;
-//            if (aiMax < aMin || aMax < aiMin) {
-//                continue;
-//            }
+            long aiMin = t + Gap;
+            long aiMax = t + Gap + aSize;
+            if (aiMax < aMin || aMax < aiMin) {
+                continue;
+            }
 //
 //            if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
 //                sum += ((aiMax + (aiMin+1)) * (aiMax - (aiMin+1) + 1)) >>> 1;
