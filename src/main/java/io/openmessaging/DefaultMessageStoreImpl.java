@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Stack;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -35,6 +36,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
     private ByteBuffer store = ByteBuffer.allocateDirect(1024 * 1024 * 1986);
+    private Map<Integer, AvgSum> sumMap = new HashMap<>();
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
@@ -103,24 +105,38 @@ public class DefaultMessageStoreImpl extends MessageStore {
     @Override
     public List<Message> getMessage(long aMin, long aMax, long tMin, long tMax) {
         if (calc.compareAndSet(false, true)) {
-            int skip = -1;
-            for (int i = (store.limit() / 2)-1; i >= 0; i--) {
-                int index = i * 2;
+            int skip = 0;
+            long sum = 0;
+            int count = 0;
+            for (int t = 0; t < (store.limit() / 2); t++) {
+                int index = t * 2;
                 int aSize = ByteUtil.getInt(store.get(index), store.get(index+1));
                 if (aSize > 0) {
+                    for (int i = 1; i <= skip; i++) {
+                        int frontIndex = (t - i) * 2;
+                        byte[] bytes = ByteUtil.toIntBytes(i);
+                        bytes[0] = (byte) (bytes[0] ^ Flag);
+                        store.put(frontIndex, bytes[0]);
+                        store.put(frontIndex + 1, bytes[1]);
+                    }
                     skip = 0;
-                    count.incrementAndGet();
-                } else if (aSize == 0 && skip != -1) {
-                    byte[] bytes = ByteUtil.toIntBytes(++skip);
-                    bytes[0] = (byte) (bytes[0] ^ Flag);  //flag
-                    store.put(index, bytes[0]);
-                    store.put(index+1, bytes[1]);
+
+                    long aiMin = t + Gap;
+                    long aiMax = t + Gap + aSize;
+                    sum += ((aiMax + (aiMin+1)) * (aiMax - (aiMin+1) + 1)) >>> 1;
+                    count += aSize;
+
+                    sumMap.put(t, new AvgSum(count, sum));
+                } else if (aSize == 0) {
+                    skip++;
                 }
             }
+
             for (int i = 0; i < 20000; i++) {
                 getAvgValue(aMin, aMax, tMin, tMax); //JIT
             }
         }
+
         try {
             semaphore.acquire();
             int tMinI = ((Long) tMin).intValue();
@@ -288,6 +304,16 @@ public class DefaultMessageStoreImpl extends MessageStore {
         @Override
         public int hashCode() {
             return Objects.hash(getA(), getT());
+        }
+    }
+
+    class AvgSum{
+        int count;
+        long sum;
+
+        public AvgSum(int count, long sum) {
+            this.count = count;
+            this.sum = sum;
         }
     }
 
