@@ -36,7 +36,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
 
     private ConcurrentHashMap<Integer, List<Result>> dirtyMap = new ConcurrentHashMap<>();
     private ByteBuffer store = ByteBuffer.allocateDirect(1024 * 1024 * 1986);
-    private Map<Integer, AvgSum> sumMap = new HashMap<>();
+    private Map<Integer, Long> sumMap = new HashMap<>();
 
 
     private ThroughputRate putRate = new ThroughputRate(1000);
@@ -50,8 +50,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
                     Thread.sleep(1000);
                     log.info("putRate:{},indexRate:{},messageRate:{},count:{}",
                             putRate.getThroughputRate(),
-                            indexRate.getThroughputRate(), messageRate.getThroughputRate(),
-                            count.get());
+                            indexRate.getThroughputRate(), messageRate.getThroughputRate());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -63,7 +62,6 @@ public class DefaultMessageStoreImpl extends MessageStore {
     }
 
     private volatile Integer boundary = null;
-    private AtomicLong count = new AtomicLong();
 
     @Override
     public synchronized void put(Message message) {
@@ -126,7 +124,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
                     sum += ((aiMax + (aiMin+1)) * (aiMax - (aiMin+1) + 1)) >>> 1;
                     count += aSize;
 
-                    sumMap.put(t, new AvgSum(count, sum));
+                    sumMap.put(t, sum);
                 } else if (aSize == 0) {
                     skip++;
                 }
