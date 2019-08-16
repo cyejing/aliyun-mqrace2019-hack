@@ -46,9 +46,10 @@ public class DefaultMessageStoreImpl extends MessageStore {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    log.info("putRate:{},indexRate:{},messageRate:{}",
+                    log.info("putRate:{},indexRate:{},messageRate:{},count:{}",
                             putRate.getThroughputRate(),
-                            indexRate.getThroughputRate(), messageRate.getThroughputRate());
+                            indexRate.getThroughputRate(), messageRate.getThroughputRate(),
+                            count.get());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -60,6 +61,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
     }
 
     private volatile Integer boundary = null;
+    private AtomicLong count = new AtomicLong();
 
     @Override
     public synchronized void put(Message message) {
@@ -107,6 +109,7 @@ public class DefaultMessageStoreImpl extends MessageStore {
                 int aSize = ByteUtil.getInt(store.get(index), store.get(index+1));
                 if (aSize > 0) {
                     skip = 0;
+                    count.incrementAndGet();
                 } else if (aSize == 0 && skip != -1) {
                     byte[] bytes = ByteUtil.toIntBytes(++skip);
                     bytes[0] = (byte) (bytes[0] ^ Flag);  //flag
@@ -224,12 +227,12 @@ public class DefaultMessageStoreImpl extends MessageStore {
             if (aiMax < aMin || aMax < aiMin) {
                 continue;
             }
-//
-//            if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
-//                sum += ((aiMax + (aiMin+1)) * (aiMax - (aiMin+1) + 1)) >>> 1;
-//                count += aSize;
-//                continue;
-//            }
+
+            if (aSize > 0 && aMin <= aiMin && aiMax <= aMax) {
+                sum += ((aiMax + (aiMin+1)) * (aiMax - (aiMin+1) + 1)) >>> 1;
+                count += aSize;
+                continue;
+            }
 
             for (int i = 1; i <= aSize; i++) {
                 int a = t + Gap + i;
